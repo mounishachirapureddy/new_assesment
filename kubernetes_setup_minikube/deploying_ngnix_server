@@ -1,0 +1,29 @@
+Steps to Deploy NGINX in Minikube:
+
+<!-- Install Minikube and kubectl: Ensure that Minikube and kubectl are installed on your system. You can download and install them from the official Minikube and Kubernetes websites. -->
+
+<!-- Start Minikube: Start your Minikube cluster: -->
+
+minikube start
+
+<!-- Create a Deployment YAML file: Create a YAML file (e.g., nginx-deployment.yaml) for the NGINX deployment and service. -->
+
+<!-- Apply the YAML file: Deploy NGINX using the kubectl command: -->
+
+kubectl apply -f nginx-deployment.yaml
+
+<!-- Expose the NGINX Deployment: Expose the deployment as a service if not done in the YAML: -->
+
+kubectl expose deployment nginx-deployment --type=NodePort --port=80
+
+<!-- Access the NGINX Service: Get the Minikube IP: -->
+
+minikube 
+
+<!-- Fetch the service's NodePort: -->
+
+kubectl get svc
+
+<!-- <!-- Access the NGINX service in your browser at  -->
+
+http://<Minikube-IP>:<NodePort>

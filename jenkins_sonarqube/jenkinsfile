@@ -1,0 +1,131 @@
+pipeline {
+    agent {
+        label 'docker'
+    }
+    tools {
+        maven 'maven'
+    }
+    environment {
+        GCS_BUCKET = 'gs://jenkins_sonarqube/'  // Your GCS bucket name
+        PROJECT_ID = 'your-gcp-project-id'  // Replace with your GCP project ID
+        ZONE = ''  // Your GCP zone
+        SONARQUBE_PROJECT_KEY = 'jenkins_sonarqube'
+        TOMCAT_PASSWORD = "your_tomcat_password"
+        TOMCAT_WEBAPPS_DIR = "/opt/tomcat/webapps"  // Update based on your Tomcat installation
+        WAR_FILE_NAME = "NETFLIX.1.2.2.war"  // Actual WAR file name
+        TOMCAT_SHUTDOWN_SCRIPT = "/opt/tomcat/bin/shutdown.sh"  // Path to shutdown script
+        TOMCAT_STARTUP_SCRIPT = "/opt/tomcat/bin/startup.sh"  // Path to startup script
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    git branch: 'main', url: 'https://github.com/mounishachirapureddy/java-project.git'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        
+
+        stage('Get External IP') {
+            steps {
+                script {
+                    // Fetch the external IP of the VM instance with both tags 'jenkins' and 'sonarqube'
+                    def externalIp = sh(script: """
+                        gcloud compute instances list \
+                        --project=${PROJECT_ID} \
+                        --filter="tags.items:jenkins AND tags.items:sonarqube" \
+                        --zones=${ZONE} \
+                        --format='get(networkInterfaces[0].accessConfigs[0].natIP)' \
+                        --limit=1
+                    """, returnStdout: true).trim()
+
+                    echo "The external IP address of the VM with both tags is: ${externalIp}"
+
+                    // Store the external IP in an environment variable for later use
+                    env.VM_EXTERNAL_IP = externalIp
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar_token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                    mvn clean verify sonar:sonar \
+                    -Dsonar.projectKey=jenkins_sonarqube \
+                    -Dsonar.host.url=http://${VM_EXTERNAL_IP}:9000 \
+                    -Dsonar.login=${SONAR_TOKEN}
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                script {
+                    timeout(time: 1, unit: 'MINUTES') {
+                        waitForQualityGate abortPipeline: true
+                    }
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                sh '''
+                mvn compile
+                mvn test
+                mvn package
+                '''
+            }
+        }
+
+        
+
+        // Stage to upload WAR file to GCS
+        stage('Upload Artifact to GCS') {
+            steps {
+                script {
+                    def artifactName = "your-artifact-${BUILD_NUMBER}.war"  // Update WAR file name
+                    def localArtifactPath = "${WORKSPACE}/target/${WAR_FILE_NAME}"
+                    def gcsUploadPath = "${GCS_BUCKET}/${artifactName}"
+
+                    // Upload the WAR file to GCS
+                    sh """
+                        gsutil scp ${localArtifactPath} ${gcsUploadPath}
+                    """
+                    
+                    // Log the upload path
+                    echo "Artifact uploaded to: ${gcsUploadPath}"
+                }
+            }
+        }
+
+        stage('Deployment') {
+            steps {
+                script {
+                    // Deploy the WAR file to Tomcat
+                    sh '''
+                    // Stop Tomcat before deploying the new WAR file
+                    sshpass -p ${TOMCAT_PASSWORD} ssh root@${VM_EXTERNAL_IP} '${TOMCAT_SHUTDOWN_SCRIPT}'
+                    
+                    // Remove the old WAR file from the Tomcat webapps directory (optional)                
+                    sshpass -p ${TOMCAT_PASSWORD} ssh root@${VM_EXTERNAL_IP} 'rm -f ${TOMCAT_WEBAPPS_DIR}/${WAR_FILE_NAME}'
+                    
+                    // Copy the new WAR file to Tomcat's webapps directory
+                    scp target/${WAR_FILE_NAME} root@${VM_EXTERNAL_IP}:${TOMCAT_WEBAPPS_DIR}/
+                    
+                    // Start Tomcat again after deploying the new WAR file
+                    sshpass -p ${TOMCAT_PASSWORD} ssh root@${VM_EXTERNAL_IP} '${TOMCAT_STARTUP_SCRIPT}'
+                    '''
+                }
+            }
+        }
+    }
+}
