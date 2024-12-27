@@ -135,4 +135,101 @@ kubectl get nodes
 
 ---
 
+Here are the steps to deploy NGINX on Minikube:
+
+### 1. **Install Minikube and kubectl**
+Ensure that Minikube and kubectl are installed on your system. 
+
+### 2. **Start Minikube**
+Start your Minikube cluster by running the following command:
+```bash
+minikube start
+```
+
+### 3. **Create a Deployment YAML File**
+Create a YAML file (e.g., `nginx-deployment.yaml`) for the NGINX deployment and service. Here's an example of what the YAML file might look like:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort
+```
+
+### 4. **Apply the YAML File**
+Deploy NGINX using the `kubectl apply` command:
+```bash
+kubectl apply -f nginx-deployment.yaml
+```
+
+### 5. **Expose the NGINX Deployment (if not already in the YAML)**
+If you haven't defined the service in the YAML file, expose the NGINX deployment as a service:
+```bash
+kubectl expose deployment nginx-deployment --type=NodePort --port=80
+```
+
+### 6. **Access the NGINX Service**
+#### Get the Minikube IP
+Fetch the Minikube IP with:
+```bash
+minikube ip
+```
+
+#### Fetch the Service's NodePort
+Get the NodePort for the NGINX service:
+```bash
+kubectl get svc
+```
+You should see something like this:
+```
+NAME            TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+nginx-service   NodePort   10.107.241.23   <none>        80:31234/TCP   5m
+```
+
+In this case, the NodePort is `31234`.
+
+### 7. **Access NGINX in Your Browser**
+Now you can access NGINX in your browser using:
+```
+http://<Minikube-IP>:<NodePort>
+```
+For example:
+```
+http://192.168.99.100:31234
+```
+
+This should display the default NGINX welcome page.
+
+---
+
+This process outlines how to deploy NGINX on Minikube and access it through a browser.
 
