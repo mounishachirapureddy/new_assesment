@@ -13,8 +13,7 @@ This project provisions a Google Kubernetes Engine (GKE) cluster on Google Cloud
    - Required APIs enabled (e.g., Kubernetes, Compute Engine).
    - A service account with necessary roles.
 
-3. **Credentials**:
-   - JSON key file for the service account.
+
 
 ## Project Structure
 
@@ -85,9 +84,4 @@ To remove all resources:
 ```bash
 terraform destroy
 ```
-
-## Notes
-- Ensure proper IAM permissions for the service account.
-- Regularly update Terraform modules for the latest improvements.
-- Monitor costs to avoid unexpected charges.
 
